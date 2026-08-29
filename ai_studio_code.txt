@@ -1,0 +1,240 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
+
+// 🔑 PROJECT CONFIGURATION: Paste your keys from Supabase here
+const String SUPABASE_URL = 'https://YOUR_PROJECT_ID.supabase.co';
+const String SUPABASE_ANON_KEY = 'YOUR_ANON_PUBLIC_KEY';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize the Supabase Connection
+  await Supabase.initialize(
+    url: SUPABASE_URL,
+    anonKey: SUPABASE_ANON_KEY,
+  );
+
+  runApp(const HustleBuildApp());
+}
+
+class HustleBuildApp extends StatelessWidget {
+  const HustleBuildApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0F172A), // Deep Navy
+        primaryColor: const Color(0xFF2DD4BF), // Teal
+      ),
+      home: const AssetVaultScreen(),
+    );
+  }
+}
+
+// --- SCREEN 1: ASSET VAULT & HUSTLE METER ---
+class AssetVaultScreen extends StatefulWidget {
+  const AssetVaultScreen({super.key});
+
+  @override
+  State<AssetVaultScreen> createState() => _AssetVaultScreenState();
+}
+
+class _AssetVaultScreenState extends State<AssetVaultScreen> {
+  final supabase = Supabase.instance.client;
+
+  // Asset Weights for the $/hr Meter
+  final Map<String, double> assetWeights = {
+    'Pickup Truck': 25.0,
+    'Utility Trailer': 20.0,
+    'Pressure Washer': 15.0,
+    'Lawn Mower': 12.0,
+    'Power Tools': 10.0,
+    'Cargo Van': 30.0,
+    'Notary Public': 35.0,
+    'Drone': 25.0,
+    'Heavy Lifting': 10.0,
+  };
+
+  final List<String> _selectedAssets = [];
+  double _potentialRate = 15.0; // Base Labor Rate
+
+  // Toggle Asset and Update Meter
+  void _toggleAsset(String asset) {
+    setState(() {
+      if (_selectedAssets.contains(asset)) {
+        _selectedAssets.remove(asset);
+        _potentialRate -= assetWeights[asset]!;
+      } else {
+        _selectedAssets.add(asset);
+        _potentialRate += assetWeights[asset]!;
+      }
+    });
+    _saveToDatabase();
+  }
+
+  // 💾 DB Logic: Sync the Vault to Supabase
+  Future<void> _saveToDatabase() async {
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      await supabase.from('profiles').upsert({
+        'id': user.id,
+        'assets': _selectedAssets,
+        'vault_level': _selectedAssets.length,
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('HUSTLEBUILD VAULT', style: TextStyle(letterSpacing: 2, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Column(
+        children: [
+          // THE GAMIFIED METER
+          Container(
+            margin: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF2DD4BF)]),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: const Color(0xFF2DD4BF).withOpacity(0.3), blurRadius: 20)],
+            ),
+            child: Column(
+              children: [
+                const Text('POTENTIAL HOURLY RATE', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('\$${_potentialRate.toStringAsFixed(2)}', 
+                  style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.black)),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: _potentialRate / 150, 
+                  backgroundColor: Colors.white24,
+                  color: Colors.white,
+                  minHeight: 8,
+                ),
+              ],
+            ),
+          ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Text("Select your 'Arsenal':", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+
+          // LIST OF ASSETS
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              children: assetWeights.keys.map((asset) {
+                final isSelected = _selectedAssets.contains(asset);
+                return GestureDetector(
+                  onTap: () => _toggleAsset(asset),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFF1E293B) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isSelected ? const Color(0xFF2DD4BF) : Colors.white10, width: 2),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(asset, style: TextStyle(color: isSelected ? Colors.white : Colors.white60, fontWeight: FontWeight.w600)),
+                        Icon(isSelected ? Icons.check_circle : Icons.add_circle_outline, color: isSelected ? const Color(0xFF2DD4BF) : Colors.white24),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // THE NEXT STEP ACTION (Rewarded Ad Hook)
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: ElevatedButton(
+              onPressed: _selectedAssets.isEmpty ? null : () => _showAdGate(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2DD4BF),
+                foregroundColor: const Color(0xFF0F172A),
+                minimumSize: const Size(double.infinity, 60),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('FIND HUSTLES', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _showAdGate() {
+    // 💰 MONETIZATION HOOK: In Production, this triggers the AdMob Video
+    Navigator.push(context, MaterialPageRoute(builder: (context) => const SynthesisScreen()));
+  }
+}
+
+// --- SCREEN 2: SYNTHESIS ANIMATION (The AI Brain) ---
+class SynthesisScreen extends StatefulWidget {
+  const SynthesisScreen({super.key});
+
+  @override
+  State<SynthesisScreen> createState() => _SynthesisScreenState();
+}
+
+class _SynthesisScreenState extends State<SynthesisScreen> {
+  int _messageIndex = 0;
+  final List<String> _statusMessages = [
+    "Locating local structural voids...",
+    "Scanning Craigslist & Nextdoor...",
+    "Analyzing seasonal demand spikes...",
+    "Matching assets to high-margin gigs...",
+    "Finalizing your Blueprint...",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (_messageIndex < _statusMessages.length - 1) {
+        setState(() => _messageIndex++);
+      } else {
+        timer.cancel();
+        // Here, the AI output would be displayed (The Result Screen)
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 80, width: 80, child: CircularProgressIndicator(color: Color(0xFF2DD4BF), strokeWidth: 6)),
+            const SizedBox(height: 40),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 500),
+              child: Text(
+                _statusMessages[_messageIndex],
+                key: ValueKey(_messageIndex),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
