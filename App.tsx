@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { supabase } from '@/lib/supabase';
 import { PremiumProvider, usePremium } from '@/context/PremiumContext';
 import { VaultScreen } from '@/screens/VaultScreen';
@@ -12,6 +11,11 @@ import { HustlesScreen } from '@/screens/HustlesScreen';
 import { PremiumScreen } from '@/screens/PremiumScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
+
+// StatusBar: expo-status-bar on native, no-op on web
+function StatusBar(_props: { style?: string }) {
+  return null;
+}
 
 const Tab = createBottomTabNavigator();
 
@@ -106,7 +110,7 @@ function AppContent() {
   return <MainTabs />;
 }
 
-export default function App() {
+export function App() {
   return (
     <PremiumProvider>
       <SafeAreaView style={styles.container}>
@@ -118,6 +122,8 @@ export default function App() {
     </PremiumProvider>
   );
 }
+
+export default App;
 
 const styles = StyleSheet.create({
   container: {

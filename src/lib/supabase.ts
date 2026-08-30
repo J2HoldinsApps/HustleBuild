@@ -1,15 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
 
-// Expo reads env vars prefixed with EXPO_PUBLIC_ at build time
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// Works with both Expo (process.env.EXPO_PUBLIC_*) and Vite (import.meta.env.VITE_*)
+const supabaseUrl =
+  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_SUPABASE_URL) ||
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
+  '';
 
-// Simple storage adapter — AsyncStorage is bundled with Expo
-// Using a lightweight localStorage-style adapter for session persistence
-const ExpoAsyncStorage = {
+const supabaseAnonKey =
+  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY) ||
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) ||
+  '';
+
+// Storage adapter — uses AsyncStorage on native, localStorage on web
+const storageAdapter = {
   getItem: async (key: string): Promise<string | null> => {
     try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       return await AsyncStorage.getItem(key);
     } catch {
@@ -18,6 +26,10 @@ const ExpoAsyncStorage = {
   },
   setItem: async (key: string, value: string): Promise<void> => {
     try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, value);
+        return;
+      }
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       await AsyncStorage.setItem(key, value);
     } catch {
@@ -26,6 +38,10 @@ const ExpoAsyncStorage = {
   },
   removeItem: async (key: string): Promise<void> => {
     try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key);
+        return;
+      }
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       await AsyncStorage.removeItem(key);
     } catch {
@@ -36,7 +52,7 @@ const ExpoAsyncStorage = {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: ExpoAsyncStorage,
+    storage: storageAdapter,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
