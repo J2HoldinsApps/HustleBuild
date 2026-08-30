@@ -1,19 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import reactNativeWeb from 'vite-plugin-react-native-web';
 import path from 'path';
 
 export default defineConfig({
-  plugins: [react(), reactNativeWeb()],
+  plugins: [react()],
   resolve: {
     alias: {
       'react-native': 'react-native-web',
+      'react-native-safe-area-context': path.resolve(__dirname, './src/web/safe-area-web.tsx'),
       '@': path.resolve(__dirname, './src'),
     },
   },
   define: {
     'process.env.EXPO_PUBLIC_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL || ''),
     'process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ''),
+    'process.env.EXPO_PUBLIC_REVENUECAT_API_KEY': JSON.stringify(''),
   },
   optimizeDeps: {
     esbuildOptions: {
@@ -22,5 +23,6 @@ export default defineConfig({
   },
   server: {
     port: 8081,
+    host: true,
   },
 });
