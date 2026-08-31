@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+// HustleBuild — Turn your assets into income
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
