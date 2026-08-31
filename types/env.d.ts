@@ -1,10 +1,10 @@
-/// <reference types="expo/types" />
+/// <reference types="vite/client" />
 
-// NOTE: This file provides type declarations for @env imports.
-// In a real Expo project, you'd use react-native-dotenv or expo's built-in env support.
-// For the preview environment, we provide fallback values.
+interface ImportMetaEnv {
+  readonly VITE_SUPABASE_URL: string;
+  readonly VITE_SUPABASE_ANON_KEY: string;
+}
 
-declare module '@env' {
-  export const SUPABASE_URL: string;
-  export const SUPABASE_ANON_KEY: string;
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
 }

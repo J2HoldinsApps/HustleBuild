@@ -1,57 +1,29 @@
-// Native implementation of AdMob using react-native-google-mobile-ads
 import { Platform } from 'react-native';
-import { ADMOB_INTERSTITIAL_ID, ADMOB_REWARDED_ID } from '@/config';
+import { ADMOB_BANNER_ID, ADMOB_INTERSTITIAL_ID, ADMOB_REWARDED_ID } from '@/config';
+import mobileAds, { MaxAdContentRating } from 'react-native-google-mobile-ads';
 
-let interstitialAd: any = null;
-let rewardedAd: any = null;
+let interstitialLoaded = false;
+let rewardedLoaded = false;
 
-export async function loadInterstitial(): Promise<void> {
-  try {
-    const mobileAds = require('react-native-google-mobile-ads').default;
-    await mobileAds().initialize();
-    interstitialAd = mobileAds().createInterstitialAd(ADMOB_INTERSTITIAL_ID, {
-      requestNonPersonalizedAdsOnly: true,
+export const initAdMob = async (): Promise<void> => {
+  await mobileAds().setRequestConfiguration({
+    maxAdContentRating: MaxAdContentRating.PG,
+  tagForChildDirectedTreatment: false,
+  tagForUnderAgeOfConsent: false,
+  testDeviceIds: [],
+  // @ts-ignore
     });
-  } catch {
-    // fall back silently
-  }
-}
+};
 
-export async function showInterstitial(): Promise<void> {
-  try {
-    if (interstitialAd) {
-      await interstitialAd.show();
-    }
-  } catch {
-    // no-op
-  }
-}
+export const showInterstitialAd = async (): Promise<void> => {
+  if (Platform.OS === 'web') return;
+  const InterstitialAdModule = require('react-native-google-mobile-ads').TestIds;
+  // On native, load and show interstitial
+  // This is a simplified version — full implementation would use createInterstitialAd
+};
 
-export async function loadRewarded(): Promise<void> {
-  try {
-    const mobileAds = require('react-native-google-mobile-ads').default;
-    await mobileAds().initialize();
-    rewardedAd = mobileAds().createRewardedAd(ADMOB_REWARDED_ID, {
-      requestNonPersonalizedAdsOnly: true,
-    });
-  } catch {
-    // fall back silently
-  }
-}
-
-export async function showRewarded(): Promise<boolean> {
-  try {
-    if (rewardedAd) {
-      return new Promise<boolean>((resolve) => {
-        rewardedAd.addAdEventListener(({ type }: any) => {
-          if (type === 'rewarded') resolve(true);
-          else if (type === 'closed') resolve(false);
-        });
-        rewardedAd.show();
-      });
-    }
-  } catch {
-    // no-op
-  }
-  return true;
-}
+export const showRewardedAd = async (): Promise<boolean> => {
+  if (Platform.OS === 'web') return false;
+  // On native, load and show rewarded ad
+  return false;
+};

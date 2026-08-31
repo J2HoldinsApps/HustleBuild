@@ -1,297 +1,131 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { usePremium } from '@/context/PremiumContext';
-import { getOfferings, purchasePackage, restorePurchases } from '@/lib/revenuecat';
-import { SUBSCRIPTION_PACKAGES, SubscriptionPackage } from '@/data/assets';
-import { BannerAd } from '@/components/BannerAd';
+import { purchasePremium, restorePurchases } from '@/lib/revenuecat';
 
-export function PremiumScreen({ navigation }: any) {
-  const { isPremium, setIsPremium } = usePremium();
-  const [packages, setPackages] = useState<SubscriptionPackage[]>(SUBSCRIPTION_PACKAGES);
-  const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export function PremiumScreen() {
+  const { isPremium, setIsPremium, loading } = usePremium();
 
-  useEffect(() => {
-    (async () => {
-      const offerings = await getOfferings();
-      setPackages(offerings);
-      setLoading(false);
-    })();
-  }, []);
-
-  const handlePurchase = async (pkg: SubscriptionPackage) => {
-    setPurchasing(true);
-    setSelectedId(pkg.identifier);
-    try {
-      const success = await purchasePackage(pkg.identifier);
-      if (success) {
-        setIsPremium(true);
-        Alert.alert('Welcome to Premium!', 'You now have unlimited access to all features.');
-      }
-    } catch (e: any) {
-      Alert.alert('Purchase Failed', e.message || 'Something went wrong. Please try again.');
-    } finally {
-      setPurchasing(false);
-      setSelectedId(null);
+  const handlePurchase = async () => {
+    const success = await purchasePremium();
+    if (success) {
+      setIsPremium(true);
+      Alert.alert('Premium Activated', 'Enjoy ad-free HustleBuild!');
     }
   };
 
   const handleRestore = async () => {
-    try {
-      const restored = await restorePurchases();
-      if (restored) {
-        setIsPremium(true);
-        Alert.alert('Purchases Restored', 'Your premium subscription has been restored.');
-      } else {
-        Alert.alert('No Purchases Found', 'We could not find any previous purchases.');
-      }
-    } catch {
-      Alert.alert('Restore Failed', 'Something went wrong. Please try again.');
+    const success = await restorePurchases();
+    if (success) {
+      setIsPremium(true);
+      Alert.alert('Purchases Restored', 'Your premium subscription is active!');
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   if (isPremium) {
     return (
       <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.activePremiumCard}>
-            <Text style={styles.crownIcon}>👑</Text>
-            <Text style={styles.activeTitle}>PREMIUM ACTIVE</Text>
-            <Text style={styles.activeSubtext}>
-              You have unlimited access to all HustleBuild features
-            </Text>
-            <View style={styles.featuresList}>
-              <Text style={styles.featureItem}>✓  Unlimited hustle blueprints</Text>
-              <Text style={styles.featureItem}>✓  No ads experience</Text>
-              <Text style={styles.featureItem}>✓  Advanced gig matching</Text>
-              <Text style={styles.featureItem}>✓  Market demand analytics</Text>
-              <Text style={styles.featureItem}>✓  Priority new hustle alerts</Text>
-            </View>
-          </View>
-        </ScrollView>
-        <BannerAd premium={isPremium} />
+        <View style={styles.premiumActive}>
+          <Text style={styles.crownEmoji}>👑</Text>
+          <Text style={styles.premiumTitle}>You're Premium!</Text>
+          <Text style={styles.premiumDesc}>
+            Enjoy ad-free browsing, unlimited assets, and exclusive hustle ideas.
+          </Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.crownIcon}>👑</Text>
-          <Text style={styles.headerTitle}>HUSTLEBUILD PREMIUM</Text>
-          <Text style={styles.headerSubtext}>
-            Unlock unlimited hustle blueprints, remove ads, and get exclusive features
-          </Text>
+      <View style={styles.hero}>
+        <Text style={styles.crownEmoji}>👑</Text>
+        <Text style={styles.heroTitle}>HustleBuild Premium</Text>
+        <Text style={styles.heroDesc}>Unlock the full power of your assets</Text>
+      </View>
+
+      <View style={styles.features}>
+        <FeatureItem icon="🚫" title="Ad-Free Experience" desc="No banner or interstitial ads" />
+        <FeatureItem icon="♾️" title="Unlimited Assets" desc="Add as many assets as you want" />
+        <FeatureItem icon="🔥" title="Exclusive Hustle Ideas" desc="Premium-only income strategies" />
+        <FeatureItem icon="📊" title="Advanced Analytics" desc="Track your hustle income" />
+      </View>
+
+      <View style={styles.pricing}>
+        <View style={styles.priceCard}>
+          <Text style={styles.priceTitle}>Monthly</Text>
+          <Text style={styles.priceValue}>$4.99</Text>
+          <Text style={styles.pricePeriod}>per month</Text>
         </View>
+        <View style={[styles.priceCard, styles.priceCardBest]}>
+          <Text style={styles.bestValue}>BEST VALUE</Text>
+          <Text style={styles.priceTitle}>Yearly</Text>
+          <Text style={styles.priceValue}>$29.99</Text>
+          <Text style={styles.pricePeriod}>per year (save 50%)</Text>
+        </View>
+      </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color="#2DD4BF" style={styles.loader} />
-        ) : (
-          <>
-            {packages.map((pkg) => (
-              <TouchableOpacity
-                key={pkg.identifier}
-                onPress={() => handlePurchase(pkg)}
-                disabled={purchasing}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.packageCard,
-                    pkg.highlight && styles.packageCardHighlight,
-                  ]}
-                >
-                  {pkg.highlight && (
-                    <View style={styles.bestValueBadge}>
-                      <Text style={styles.bestValueText}>BEST VALUE</Text>
-                    </View>
-                  )}
-                  <View style={styles.packageHeader}>
-                    <Text style={styles.packageTitle}>{pkg.title}</Text>
-                    <Text style={styles.packagePrice}>
-                      {pkg.price}
-                      <Text style={styles.packagePeriod}>{pkg.period}</Text>
-                    </Text>
-                  </View>
-                  <View style={styles.featuresList}>
-                    {pkg.features.map((feature, i) => (
-                      <Text key={i} style={styles.featureItem}>✓  {feature}</Text>
-                    ))}
-                  </View>
-                  <View style={styles.ctaButton}>
-                    {purchasing && selectedId === pkg.identifier ? (
-                      <ActivityIndicator color="#0F172A" />
-                    ) : (
-                      <Text style={styles.ctaText}>Subscribe</Text>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+      <TouchableOpacity style={styles.ctaButton} onPress={handlePurchase}>
+        <Text style={styles.ctaText}>Start Free Trial</Text>
+      </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleRestore} disabled={purchasing}>
-              <Text style={styles.restoreText}>Restore Purchases</Text>
-            </TouchableOpacity>
+      <TouchableOpacity onPress={handleRestore}>
+        <Text style={styles.restoreText}>Restore Purchases</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
-            <Text style={styles.disclaimer}>
-              Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Manage in your account settings.
-            </Text>
-          </>
-        )}
-      </ScrollView>
-
-      <BannerAd premium={isPremium} />
+function FeatureItem({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+  return (
+    <View style={styles.featureItem}>
+      <Text style={styles.featureIcon}>{icon}</Text>
+      <View style={styles.featureInfo}>
+        <Text style={styles.featureTitle}>{title}</Text>
+        <Text style={styles.featureDesc}>{desc}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 12,
-  },
-  crownIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  headerTitle: {
-    color: '#F1F5F9',
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    marginBottom: 8,
-  },
-  headerSubtext: {
-    color: '#94A3B8',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 20,
-  },
-  loader: {
-    marginTop: 40,
-  },
-  packageCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  packageCardHighlight: {
-    borderColor: '#2DD4BF',
-    backgroundColor: '#1A2E3A',
-  },
-  bestValueBadge: {
-    position: 'absolute',
-    top: -10,
-    left: 24,
-    backgroundColor: '#2DD4BF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  bestValueText: {
-    color: '#0F172A',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  packageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  packageTitle: {
-    color: '#F1F5F9',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  packagePrice: {
-    color: '#2DD4BF',
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  packagePeriod: {
-    color: '#64748B',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  featuresList: {
-    gap: 8,
-    marginBottom: 20,
-  },
-  featureItem: {
-    color: '#CBD5E1',
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  ctaButton: {
-    backgroundColor: '#2DD4BF',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  ctaText: {
-    color: '#0F172A',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  restoreText: {
-    color: '#64748B',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 16,
-    textDecorationLine: 'underline',
-  },
-  disclaimer: {
-    color: '#475569',
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 16,
-    lineHeight: 16,
-  },
-  activePremiumCard: {
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2DD4BF',
-    marginTop: 20,
-  },
-  activeTitle: {
-    color: '#2DD4BF',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  activeSubtext: {
-    color: '#94A3B8',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
+  container: { flex: 1, backgroundColor: '#0F172A', padding: 20 },
+  loadingText: { color: '#64748B', fontSize: 16, textAlign: 'center', marginTop: 40 },
+  hero: { alignItems: 'center', paddingVertical: 32 },
+  crownEmoji: { fontSize: 56 },
+  heroTitle: { color: '#F1F5F9', fontSize: 26, fontWeight: '900', marginTop: 12 },
+  heroDesc: { color: '#64748B', fontSize: 14, marginTop: 4 },
+  features: { marginBottom: 24 },
+  featureItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  featureIcon: { fontSize: 28, marginRight: 16 },
+  featureInfo: { flex: 1 },
+  featureTitle: { color: '#F1F5F9', fontSize: 16, fontWeight: '700' },
+  featureDesc: { color: '#64748B', fontSize: 13, marginTop: 2 },
+  pricing: { flexDirection: 'row', marginBottom: 24 },
+  priceCard: { flex: 1, backgroundColor: '#1E293B', borderRadius: 16, padding: 20, alignItems: 'center', marginRight: 8, borderWidth: 1, borderColor: '#334155' },
+  priceCardBest: { borderColor: '#2DD4BF', backgroundColor: '#0F2A2A' },
+  bestValue: { color: '#2DD4BF', fontSize: 10, fontWeight: '800', marginBottom: 8 },
+  priceTitle: { color: '#94A3B8', fontSize: 14, fontWeight: '600' },
+  priceValue: { color: '#F1F5F9', fontSize: 32, fontWeight: '900', marginVertical: 4 },
+  pricePeriod: { color: '#64748B', fontSize: 12 },
+  ctaButton: { backgroundColor: '#2DD4BF', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
+  ctaText: { color: '#0F172A', fontSize: 18, fontWeight: '800' },
+  restoreText: { color: '#64748B', fontSize: 14, textAlign: 'center' },
+  premiumActive: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  premiumTitle: { color: '#2DD4BF', fontSize: 24, fontWeight: '900', marginTop: 16 },
+  premiumDesc: { color: '#94A3B8', fontSize: 14, textAlign: 'center', marginTop: 8, paddingHorizontal: 40 },
 });

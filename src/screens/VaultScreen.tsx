@@ -3,331 +3,240 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
-  Animated,
-  Easing,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
-import { ASSET_WEIGHTS, ASSET_ICONS } from '@/data/assets';
 import { usePremium } from '@/context/PremiumContext';
 import { BannerAd } from '@/components/BannerAd';
+import { ASSET_CATEGORIES, type Asset } from '@/data/assets';
 
-const BASE_RATE = 15.0;
-
-export function VaultScreen({ navigation }: any) {
-  const { isPremium } = usePremium();
-  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
-  const [potentialRate, setPotentialRate] = useState(BASE_RATE);
+export function VaultScreen() {
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
-  const fadeAnims = React.useRef<Record<string, Animated.Value>>({});
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newAsset, setNewAsset] = useState({ name: '', category: 'Vehicle', value: '' });
+  const { isPremium } = usePremium();
 
-  // Initialize fade animations for each asset
-  Object.keys(ASSET_WEIGHTS).forEach((asset) => {
-    if (!fadeAnims.current[asset]) {
-      fadeAnims.current[asset] = new Animated.Value(0);
+  const loadAssets = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from('assets')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setAssets(data);
     }
-  });
+    setLoading(false);
+  }, []);
 
-  const loadProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
+  useEffect(() => {
+    loadAssets();
+  }, [loadAssets]);
+
+  const addAsset = async () => {
+    if (!newAsset.name || !newAsset.value) {
+      Alert.alert('Missing fields', 'Please enter a name and value.');
       return;
     }
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     const { data, error } = await supabase
-      .from('profiles')
-      .select('assets, potential_rate')
-      .eq('id', user.id)
-      .maybeSingle();
+      .from('assets')
+      .insert({
+        user_id: session.user.id,
+        name: newAsset.name,
+        category: newAsset.category,
+        value: parseFloat(newAsset.value),
+        status: 'idle',
+        image: '📦',
+        description: '',
+      })
+      .select()
+      .single();
 
-    if (data) {
-      setSelectedAssets(data.assets || []);
-      setPotentialRate(Number(data.potential_rate) || BASE_RATE);
+    if (!error && data) {
+      setAssets([data, ...assets]);
+      setNewAsset({ name: '', category: 'Vehicle', value: '' });
+      setShowAddModal(false);
     }
-    setLoading(false);
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadProfile();
-    }, [])
+  const deleteAsset = async (id: string) => {
+    const { error } = await supabase.from('assets').delete().eq('id', id);
+    if (!error) {
+      setAssets(assets.filter(a => a.id !== id));
+    }
+  };
+
+  const totalValue = assets.reduce((sum, a) => sum + (a.value || 0), 0);
+  const activeCount = assets.filter(a => a.status === 'active').length;
+
+  const renderAsset = ({ item }: { item: Asset }) => (
+    <View style={styles.assetCard}>
+      <View style={styles.assetIcon}>
+        <Text style={styles.assetEmoji}>{item.image || '📦'}</Text>
+      </View>
+      <View style={styles.assetInfo}>
+        <Text style={styles.assetName}>{item.name}</Text>
+        <Text style={styles.assetCategory}>{item.category}</Text>
+        <Text style={styles.assetValue}>${item.value.toLocaleString()}</Text>
+      </View>
+      <View style={styles.assetActions}>
+        <View style={[styles.statusBadge, item.status === 'active' ? styles.statusActive : styles.statusIdle]}>
+          <Text style={styles.statusText}>{item.status}</Text>
+        </View>
+        <TouchableOpacity onPress={() => deleteAsset(item.id)}>
+          <Text style={styles.deleteText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
-
-  const toggleAsset = async (asset: string) => {
-    let newAssets: string[];
-    let newRate: number;
-
-    setSelectedAssets((prev) => {
-      if (prev.includes(asset)) {
-        newAssets = prev.filter((a) => a !== asset);
-        newRate = potentialRate - ASSET_WEIGHTS[asset];
-      } else {
-        newAssets = [...prev, asset];
-        newRate = potentialRate + ASSET_WEIGHTS[asset];
-      }
-      setPotentialRate(newRate);
-      return newAssets;
-    });
-
-    // Animate the card
-    Animated.timing(fadeAnims.current[asset], {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-      easing: Easing.ease,
-    }).start(() => fadeAnims.current[asset].setValue(0));
-
-    // Save to Supabase
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        assets: newAssets!,
-        vault_level: newAssets!.length,
-        potential_rate: newRate!,
-      });
-    }
-  };
-
-  const progressValue = Math.min(potentialRate / 150, 1);
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Gamified Meter */}
-        <View style={styles.meterContainer}>
-          <View style={styles.meterGradient}>
-            <Text style={styles.meterLabel}>POTENTIAL HOURLY RATE</Text>
-            <Text style={styles.meterValue}>${potentialRate.toFixed(2)}</Text>
-            <View style={styles.progressTrack}>
-              <Animated.View
-                style={[
-                  styles.progressFill,
-                  { width: `${progressValue * 100}%` },
-                ]}
-              />
+      {!isPremium && <BannerAd />}
+      <View style={styles.header}>
+        <Text style={styles.title}>Asset Vault</Text>
+        <Text style={styles.subtitle}>{assets.length} assets · ${totalValue.toLocaleString()} total</Text>
+      </View>
+
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{assets.length}</Text>
+          <Text style={styles.statLabel}>Total Assets</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{activeCount}</Text>
+          <Text style={styles.statLabel}>Active</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{assets.length - activeCount}</Text>
+          <Text style={styles.statLabel}>Idle</Text>
+        </View>
+      </View>
+
+      {loading ? (
+        <Text style={styles.emptyText}>Loading...</Text>
+      ) : assets.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyEmoji}>📭</Text>
+          <Text style={styles.emptyText}>No assets yet</Text>
+          <Text style={styles.emptySubtext}>Add your first asset to start hustling</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={assets}
+          renderItem={renderAsset}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+        />
+      )}
+
+      <TouchableOpacity style={styles.fab} onPress={() => setShowAddModal(true)}>
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
+
+      <Modal visible={showAddModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Asset</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Asset name"
+              placeholderTextColor="#64748B"
+              value={newAsset.name}
+              onChangeText={text => setNewAsset({ ...newAsset, name: text })}
+            />
+            <View style={styles.categoryRow}>
+              {ASSET_CATEGORIES.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryChip,
+                    newAsset.category === cat && styles.categoryChipActive,
+                  ]}
+                  onPress={() => setNewAsset({ ...newAsset, category: cat })}
+                >
+                  <Text style={[styles.categoryText, newAsset.category === cat && styles.categoryTextActive]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-            <Text style={styles.meterSubtext}>
-              {selectedAssets.length} assets selected
-            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Estimated value ($)"
+              placeholderTextColor="#64748B"
+              value={newAsset.value}
+              onChangeText={text => setNewAsset({ ...newAsset, value: text })}
+              keyboardType="numeric"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowAddModal(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.addButton} onPress={addAsset}>
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-
-        <Text style={styles.sectionTitle}>Select your Arsenal</Text>
-        <Text style={styles.sectionSubtext}>
-          Tap the assets you own to calculate your earning potential
-        </Text>
-
-        {/* Asset List */}
-        <View style={styles.assetList}>
-          {Object.entries(ASSET_WEIGHTS).map(([asset, weight]) => {
-            const isSelected = selectedAssets.includes(asset);
-            return (
-              <TouchableOpacity
-                key={asset}
-                onPress={() => toggleAsset(asset)}
-                activeOpacity={0.7}
-              >
-                <Animated.View
-                  style={[
-                    styles.assetCard,
-                    isSelected && styles.assetCardSelected,
-                  ]}
-                >
-                  <View style={styles.assetLeft}>
-                    <Text style={styles.assetIcon}>{ASSET_ICONS[asset]}</Text>
-                    <View>
-                      <Text
-                        style={[
-                          styles.assetName,
-                          isSelected && styles.assetNameSelected,
-                        ]}
-                      >
-                        {asset}
-                      </Text>
-                      <Text style={styles.assetWeight}>+${weight.toFixed(0)}/hr</Text>
-                    </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.checkCircle,
-                      isSelected && styles.checkCircleActive,
-                    ]}
-                  >
-                    <Text style={styles.checkIcon}>
-                      {isSelected ? '✓' : '+'}
-                    </Text>
-                  </View>
-                </Animated.View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Find Hustles Button */}
-        <TouchableOpacity
-          style={[
-            styles.findButton,
-            selectedAssets.length === 0 && styles.findButtonDisabled,
-          ]}
-          disabled={selectedAssets.length === 0}
-          onPress={() => {
-            if (isPremium) {
-              navigation.navigate('Hustles');
-            } else {
-              navigation.navigate('Synthesis');
-            }
-          }}
-        >
-          <Text style={styles.findButtonText}>FIND HUSTLES</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      <BannerAd premium={isPremium} />
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  meterContainer: {
-    margin: 20,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  meterGradient: {
-    backgroundColor: '#1E293B',
-    padding: 24,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#2DD4BF',
-  },
-  meterLabel: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    textAlign: 'center',
-  },
-  meterValue: {
-    color: '#2DD4BF',
-    fontSize: 48,
-    fontWeight: '900',
-    textAlign: 'center',
-    marginVertical: 8,
-  },
-  progressTrack: {
-    height: 8,
-    backgroundColor: '#334155',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginVertical: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#2DD4BF',
-    borderRadius: 4,
-  },
-  meterSubtext: {
-    color: '#64748B',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  sectionTitle: {
-    color: '#F1F5F9',
-    fontSize: 18,
-    fontWeight: '700',
-    paddingHorizontal: 20,
-    marginTop: 8,
-  },
-  sectionSubtext: {
-    color: '#64748B',
-    fontSize: 13,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  assetList: {
-    paddingHorizontal: 20,
-  },
-  assetCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  assetCardSelected: {
-    borderColor: '#2DD4BF',
-    backgroundColor: '#1A2E3A',
-  },
-  assetLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  assetIcon: {
-    fontSize: 28,
-  },
-  assetName: {
-    color: '#CBD5E1',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  assetNameSelected: {
-    color: '#F1F5F9',
-  },
-  assetWeight: {
-    color: '#2DD4BF',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  checkCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#475569',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkCircleActive: {
-    borderColor: '#2DD4BF',
-    backgroundColor: '#2DD4BF',
-  },
-  checkIcon: {
-    color: '#475569',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  findButton: {
-    margin: 20,
-    backgroundColor: '#2DD4BF',
-    paddingVertical: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  findButtonDisabled: {
-    backgroundColor: '#334155',
-  },
-  findButtonText: {
-    color: '#0F172A',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
+  container: { flex: 1, backgroundColor: '#0F172A' },
+  header: { padding: 20, paddingBottom: 12 },
+  title: { color: '#F1F5F9', fontSize: 28, fontWeight: '900' },
+  subtitle: { color: '#64748B', fontSize: 14, marginTop: 4 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16 },
+  statCard: { flex: 1, backgroundColor: '#1E293B', borderRadius: 12, padding: 16, marginRight: 8, alignItems: 'center' },
+  statValue: { color: '#2DD4BF', fontSize: 24, fontWeight: '800' },
+  statLabel: { color: '#64748B', fontSize: 11, marginTop: 4 },
+  list: { padding: 20, paddingTop: 0 },
+  assetCard: { flexDirection: 'row', backgroundColor: '#1E293B', borderRadius: 16, padding: 16, marginBottom: 12, alignItems: 'center' },
+  assetIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#334155', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  assetEmoji: { fontSize: 24 },
+  assetInfo: { flex: 1 },
+  assetName: { color: '#F1F5F9', fontSize: 16, fontWeight: '700' },
+  assetCategory: { color: '#64748B', fontSize: 12, marginTop: 2 },
+  assetValue: { color: '#2DD4BF', fontSize: 14, fontWeight: '600', marginTop: 4 },
+  assetActions: { alignItems: 'flex-end' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginBottom: 8 },
+  statusActive: { backgroundColor: '#064E3B' },
+  statusIdle: { backgroundColor: '#334155' },
+  statusText: { color: '#94A3B8', fontSize: 10, fontWeight: '600', textTransform: 'uppercase' },
+  deleteText: { color: '#EF4444', fontSize: 12 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyEmoji: { fontSize: 48, marginBottom: 16 },
+  emptyText: { color: '#64748B', fontSize: 18, fontWeight: '600' },
+  emptySubtext: { color: '#475569', fontSize: 14, marginTop: 4 },
+  fab: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#2DD4BF', alignItems: 'center', justifyContent: 'center', shadowColor: '#2DD4BF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  fabText: { color: '#0F172A', fontSize: 28, fontWeight: '300' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  modalContent: { backgroundColor: '#1E293B', borderRadius: 20, padding: 24 },
+  modalTitle: { color: '#F1F5F9', fontSize: 22, fontWeight: '700', marginBottom: 20 },
+  input: { backgroundColor: '#0F172A', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: '#F1F5F9', fontSize: 16, borderWidth: 1, borderColor: '#334155', marginBottom: 12 },
+  categoryRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
+  categoryChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#0F172A', marginRight: 8, marginBottom: 8, borderWidth: 1, borderColor: '#334155' },
+  categoryChipActive: { backgroundColor: '#2DD4BF', borderColor: '#2DD4BF' },
+  categoryText: { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
+  categoryTextActive: { color: '#0F172A' },
+  modalActions: { flexDirection: 'row', marginTop: 8 },
+  cancelButton: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginRight: 8, backgroundColor: '#334155' },
+  cancelText: { color: '#94A3B8', fontSize: 16, fontWeight: '600' },
+  addButton: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: '#2DD4BF' },
+  addButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '800' },
 });

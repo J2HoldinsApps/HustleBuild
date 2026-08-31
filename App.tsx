@@ -12,7 +12,6 @@ import { PremiumScreen } from '@/screens/PremiumScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
 
-// StatusBar: expo-status-bar on native, no-op on web
 function StatusBar(_props: { style?: string }) {
   return null;
 }

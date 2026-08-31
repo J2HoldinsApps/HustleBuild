@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Works with both Expo (process.env.EXPO_PUBLIC_*) and Vite (import.meta.env.VITE_*)
 const supabaseUrl =
   (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_SUPABASE_URL) ||
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) ||
@@ -11,7 +10,6 @@ const supabaseAnonKey =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) ||
   '';
 
-// Storage adapter — uses AsyncStorage on native, localStorage on web
 const storageAdapter = {
   getItem: async (key: string): Promise<string | null> => {
     try {
