@@ -83,17 +83,41 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    let cancelled = false;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) setDemoMode(false);
-    });
+    const timeout = setTimeout(() => {
+      if (!cancelled) {
+        setLoading(false);
+      }
+    }, 3000);
 
-    return () => subscription.unsubscribe();
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        setSession(session);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    let subscription: any;
+    try {
+      const result = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+        if (session) setDemoMode(false);
+      });
+      subscription = result.data.subscription;
+    } catch {
+      // auth listener failed, ignore
+    }
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const handleDemoMode = () => {
