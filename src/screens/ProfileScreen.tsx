@@ -8,11 +8,29 @@ import {
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/context/PremiumContext';
+import { useDemo } from '@/context/DemoContext';
 
-export function ProfileScreen() {
+export function ProfileScreen({ navigation }: any) {
   const { isPremium } = usePremium();
+  const { demoMode } = useDemo();
 
-  const handleSignOut = async () => {
+  const handleExit = () => {
+    if (demoMode) {
+      Alert.alert('Exit Demo', 'You will need to refresh the page to re-enter demo mode.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Exit',
+          style: 'destructive',
+          onPress: () => {
+            if (typeof window !== 'undefined') {
+              window.location.reload();
+            }
+          },
+        },
+      ]);
+      return;
+    }
+
     Alert.alert('Sign Out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -46,8 +64,8 @@ export function ProfileScreen() {
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Plan</Text>
-            <Text style={styles.rowValue}>{isPremium ? 'Yearly' : 'Free Tier'}</Text>
+            <Text style={styles.rowLabel}>Mode</Text>
+            <Text style={styles.rowValue}>{demoMode ? 'Demo' : 'Signed In'}</Text>
           </View>
         </View>
       </View>
@@ -67,8 +85,8 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
+      <TouchableOpacity style={styles.signOutButton} onPress={handleExit}>
+        <Text style={styles.signOutText}>{demoMode ? 'Exit Demo' : 'Sign Out'}</Text>
       </TouchableOpacity>
     </View>
   );

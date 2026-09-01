@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/context/PremiumContext';
+import { useDemo } from '@/context/DemoContext';
 import { BannerAd } from '@/components/BannerAd';
 import { ASSET_CATEGORIES, type Asset } from '@/data/assets';
 
@@ -20,10 +20,20 @@ export function VaultScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAsset, setNewAsset] = useState({ name: '', category: 'Vehicle', value: '' });
   const { isPremium } = usePremium();
+  const { demoMode, demoAssets, addDemoAsset, deleteDemoAsset } = useDemo();
 
   const loadAssets = useCallback(async () => {
+    if (demoMode) {
+      setAssets(demoAssets);
+      setLoading(false);
+      return;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      setLoading(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from('assets')
@@ -35,15 +45,29 @@ export function VaultScreen() {
       setAssets(data);
     }
     setLoading(false);
-  }, []);
+  }, [demoMode, demoAssets]);
 
   useEffect(() => {
     loadAssets();
   }, [loadAssets]);
 
   const addAsset = async () => {
-    if (!newAsset.name || !newAsset.value) {
-      Alert.alert('Missing fields', 'Please enter a name and value.');
+    if (!newAsset.name || !newAsset.value) return;
+
+    if (demoMode) {
+      const asset: Asset = {
+        id: Date.now().toString(),
+        name: newAsset.name,
+        category: newAsset.category,
+        value: parseFloat(newAsset.value),
+        status: 'idle',
+        image: '📦',
+        description: '',
+      };
+      addDemoAsset(asset);
+      setAssets([asset, ...assets]);
+      setNewAsset({ name: '', category: 'Vehicle', value: '' });
+      setShowAddModal(false);
       return;
     }
 
@@ -71,7 +95,13 @@ export function VaultScreen() {
     }
   };
 
-  const deleteAsset = async (id: string) => {
+  const handleDelete = async (id: string) => {
+    if (demoMode) {
+      deleteDemoAsset(id);
+      setAssets(assets.filter(a => a.id !== id));
+      return;
+    }
+
     const { error } = await supabase.from('assets').delete().eq('id', id);
     if (!error) {
       setAssets(assets.filter(a => a.id !== id));
@@ -95,7 +125,7 @@ export function VaultScreen() {
         <View style={[styles.statusBadge, item.status === 'active' ? styles.statusActive : styles.statusIdle]}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
-        <TouchableOpacity onPress={() => deleteAsset(item.id)}>
+        <TouchableOpacity onPress={() => handleDelete(item.id)}>
           <Text style={styles.deleteText}>Delete</Text>
         </TouchableOpacity>
       </View>
@@ -108,6 +138,7 @@ export function VaultScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Asset Vault</Text>
         <Text style={styles.subtitle}>{assets.length} assets · ${totalValue.toLocaleString()} total</Text>
+        {demoMode && <Text style={styles.demoBadge}>DEMO MODE</Text>}
       </View>
 
       <View style={styles.statsRow}>
@@ -201,6 +232,7 @@ const styles = StyleSheet.create({
   header: { padding: 20, paddingBottom: 12 },
   title: { color: '#F1F5F9', fontSize: 28, fontWeight: '900' },
   subtitle: { color: '#64748B', fontSize: 14, marginTop: 4 },
+  demoBadge: { color: '#FBBF24', fontSize: 11, fontWeight: '800', marginTop: 6, letterSpacing: 1 },
   statsRow: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: '#1E293B', borderRadius: 12, padding: 16, marginRight: 8, alignItems: 'center' },
   statValue: { color: '#2DD4BF', fontSize: 24, fontWeight: '800' },

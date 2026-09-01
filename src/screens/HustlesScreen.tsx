@@ -1,22 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/context/PremiumContext';
+import { useDemo } from '@/context/DemoContext';
 import { BannerAd } from '@/components/BannerAd';
 import { HUSTLE_IDEAS } from '@/data/assets';
 
 export function HustlesScreen() {
   const [assets, setAssets] = useState<any[]>([]);
   const { isPremium } = usePremium();
+  const { demoMode, demoAssets } = useDemo();
 
   useEffect(() => {
     (async () => {
+      if (demoMode) {
+        setAssets(demoAssets);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       const { data } = await supabase
@@ -25,7 +31,7 @@ export function HustlesScreen() {
         .eq('user_id', session.user.id);
       if (data) setAssets(data);
     })();
-  }, []);
+  }, [demoMode, demoAssets]);
 
   const matchedIdeas = assets.flatMap(asset =>
     HUSTLE_IDEAS
@@ -51,6 +57,7 @@ export function HustlesScreen() {
         <Text style={styles.subtitle}>
           {matchedIdeas.length} ideas based on your assets
         </Text>
+        {demoMode && <Text style={styles.demoBadge}>DEMO MODE</Text>}
       </View>
 
       {matchedIdeas.length === 0 ? (
@@ -76,6 +83,7 @@ const styles = StyleSheet.create({
   header: { padding: 20, paddingBottom: 12 },
   title: { color: '#F1F5F9', fontSize: 28, fontWeight: '900' },
   subtitle: { color: '#64748B', fontSize: 14, marginTop: 4 },
+  demoBadge: { color: '#FBBF24', fontSize: 11, fontWeight: '800', marginTop: 6, letterSpacing: 1 },
   list: { padding: 20, paddingTop: 0 },
   ideaCard: { backgroundColor: '#1E293B', borderRadius: 16, padding: 16, marginBottom: 12 },
   ideaHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },

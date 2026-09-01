@@ -5,37 +5,37 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
-export function AuthScreen({ navigation }: any) {
+export function AuthScreen({ onDemoMode, navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAuth = async () => {
     if (!email || !password) {
-      Alert.alert('Missing fields', 'Please enter your email and password.');
+      setError('Please enter your email and password.');
       return;
     }
 
+    setError(null);
     setLoading(true);
     try {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        Alert.alert('Account created', 'Welcome to HustleBuild!');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (e: any) {
-      Alert.alert('Authentication failed', e.message || 'Please try again.');
+      setError(e.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -57,6 +57,12 @@ export function AuthScreen({ navigation }: any) {
           <Text style={styles.formTitle}>
             {isSignUp ? 'Create Account' : 'Welcome Back'}
           </Text>
+
+          {error && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
           <TextInput
             style={styles.input}
@@ -95,6 +101,16 @@ export function AuthScreen({ navigation }: any) {
                 ? 'Already have an account? Sign In'
                 : "Don't have an account? Sign Up"}
             </Text>
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity style={styles.demoButton} onPress={onDemoMode}>
+            <Text style={styles.demoButtonText}>Explore Demo Mode</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -145,6 +161,16 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
   },
+  errorBox: {
+    backgroundColor: '#7F1D1D',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#FCA5A5',
+    fontSize: 13,
+  },
   input: {
     backgroundColor: '#0F172A',
     borderRadius: 12,
@@ -172,5 +198,34 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontSize: 14,
     textAlign: 'center',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#334155',
+  },
+  dividerText: {
+    color: '#64748B',
+    fontSize: 12,
+    marginHorizontal: 12,
+    fontWeight: '600',
+  },
+  demoButton: {
+    backgroundColor: '#334155',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  demoButtonText: {
+    color: '#CBD5E1',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

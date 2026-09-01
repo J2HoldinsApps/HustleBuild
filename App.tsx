@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-// HustleBuild — Turn your assets into income
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
@@ -7,11 +6,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { PremiumProvider, usePremium } from '@/context/PremiumContext';
 import { VaultScreen } from '@/screens/VaultScreen';
-import { SynthesisScreen } from '@/screens/SynthesisScreen';
 import { HustlesScreen } from '@/screens/HustlesScreen';
 import { PremiumScreen } from '@/screens/PremiumScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { AuthScreen } from '@/screens/AuthScreen';
+import { DemoProvider } from '@/context/DemoContext';
 
 function StatusBar(_props: { style?: string }) {
   return null;
@@ -80,6 +79,7 @@ function TabIcon({ icon, color }: { icon: string; color: string }) {
 
 function AppContent() {
   const [session, setSession] = useState<any>(null);
+  const [demoMode, setDemoMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -90,10 +90,15 @@ function AppContent() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) setDemoMode(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const handleDemoMode = () => {
+    setDemoMode(true);
+  };
 
   if (loading) {
     return (
@@ -103,11 +108,15 @@ function AppContent() {
     );
   }
 
-  if (!session) {
-    return <AuthScreen navigation={{ replace: () => {} }} />;
+  if (!session && !demoMode) {
+    return <AuthScreen onDemoMode={handleDemoMode} navigation={{ replace: () => {} }} />;
   }
 
-  return <MainTabs />;
+  return (
+    <DemoProvider demoMode={demoMode}>
+      <MainTabs />
+    </DemoProvider>
+  );
 }
 
 export function App() {
